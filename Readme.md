@@ -70,14 +70,14 @@ The image has no GPU training tools or credentials.
 
 Create or connect the **private** Kaggle dataset `YOUR_USERNAME/llama-finetuning-code` first. `kaggle/stage_dataset.sh` fetches its existing metadata, packages only source, config, safety cases, and requirements into `project.tar`, then versions it. It never stages raw data, weights, `.env`, or secrets. `kaggle/launch.py` builds notebook metadata for `YOUR_USERNAME/medical-medquad-qlora`, with GPU, internet, and the private code dataset as `dataset_sources`. The notebook extracts code to `/kaggle/working`, installs training dependencies, and runs the scripts in order. It downloads the model and upstream MedQuAD during execution.
 
-Put `KAGGLE_USERNAME` and `KAGGLE_KEY` in GitHub Actions secrets. Relevant code changes trigger only CPU tests. Documentation-only commits do not trigger the workflow; GPU work is queued only through manual `workflow_dispatch` with `queue_training=true`. A successful `kaggle kernels push` means **submitted**, not trained. Check the Kaggle run page or:
+Put `KAGGLE_USERNAME` and `KAGGLE_KEY` in GitHub Actions secrets. For local commands, copy `.env.example` to `.env` and fill the values; `kaggle/launch.py` loads that file without printing secrets. Relevant code changes trigger only CPU tests. Documentation-only commits do not trigger the workflow; GPU work is queued only through manual `workflow_dispatch` with `queue_training=true`. A successful `kaggle kernels push` means **submitted**, not trained. Check the Kaggle run page or:
 
 ```bash
 kaggle kernels status YOUR_USERNAME/medical-medquad-qlora
 kaggle kernels output YOUR_USERNAME/medical-medquad-qlora -p kaggle-output
 ```
 
-Confirm the run finished and inspect `artifacts/training/adapter`, `artifacts/reports/evaluation.json`, and `artifacts/reports/promotion.json` in the Kaggle output. If the earlier Kaggle dataset or kernel uses other IDs, compare its files and update the scripts. For a local dry run after installing the Kaggle CLI and setting environment variables: `python kaggle/launch.py --dry-run`. `bash kaggle/stage_dataset.sh` stages code and `python kaggle/launch.py` queues a GPU run.
+Confirm the run finished and inspect `artifacts/training/adapter`, `artifacts/reports/evaluation.json`, and `artifacts/reports/promotion.json` in the Kaggle output. If the earlier Kaggle dataset or kernel uses other IDs, compare its files and update the scripts. For local checks, run `python kaggle/launch.py --stage-dry-run` to validate the staged package and `python kaggle/launch.py --dry-run` to validate notebook metadata. Neither contacts Kaggle. With the Kaggle CLI installed, `bash kaggle/stage_dataset.sh` versions the existing private dataset and `python kaggle/launch.py` queues a GPU run.
 
 ## Training and evaluation
 

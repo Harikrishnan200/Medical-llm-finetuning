@@ -75,7 +75,7 @@ def main():
     shutil.copy2(ROOT / "train.ipynb", stage / "train.ipynb")
     (stage / "kernel-metadata.json").write_text(json.dumps(metadata(username), indent=2), encoding="utf-8")
     if args.dry_run:
-        print(f"Validated metadata for {username}/medical-medquad-qlora; no GPU job queued")
+        print("Validated notebook metadata for configured Kaggle account; no GPU job queued")
         return
     if not os.environ.get("KAGGLE_KEY"):
         raise RuntimeError("KAGGLE_KEY is required")
