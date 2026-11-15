@@ -29,8 +29,9 @@ def main():
     adapter = project_path(config["training"]["output_dir"]) / "adapter"
     if not (adapter / "adapter_config.json").is_file():
         raise FileNotFoundError("Completed adapter is missing")
-    model_card = ("---\nlicense: " + config["model"]["license"] + "\nbase_model: " + config["model"]["name"] + "\n---\n\n"
+    model_card = ("---\nbase_model: " + config["model"]["name"] + "\n---\n\n"
                   "# Educational MedQuAD QLoRA adapter\n\n"
+                  "Base model license: " + config["model"]["license"] + ". Adapter license must be chosen by its owner.\n\n"
                   "Fine-tuned on MedQuAD (CC BY 4.0), upstream https://github.com/abachaa/MedQuAD. "
                   "Original source authors: Asma Ben Abacha and Dina Demner-Fushman. "
                   "See the upstream citation and source terms. The three MedlinePlus subsets with removed answers are excluded.\n\n"
