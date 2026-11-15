@@ -37,6 +37,21 @@ def package_code(archive_path):
     return [path.relative_to(PROJECT).as_posix() for path in files]
 
 
+def upload_metadata(downloaded, dataset_id):
+    """Kaggle's download format nests metadata; uploads need a flat document."""
+    info = downloaded.get("info", downloaded)
+    if info.get("isPrivate", info.get("is_private")) is not True:
+        raise ValueError("Refusing to version a dataset that is not confirmed private")
+    if not info.get("title") or not info.get("licenses"):
+        raise ValueError("Existing Kaggle dataset metadata lacks title or license")
+    result = {"id": dataset_id, "title": info["title"],
+              "licenses": info["licenses"], "is_private": True}
+    for field in ("subtitle", "description", "expectedUpdateFrequency"):
+        if info.get(field):
+            result[field] = info[field]
+    return result
+
+
 def stage_dataset(username, dry_run=False):
     if dry_run:
         stage = ROOT / "_stage"
@@ -52,6 +67,9 @@ def stage_dataset(username, dry_run=False):
         package_code(stage / "project.tar")
         dataset_id = f"{username}/llama-finetuning-code"
         subprocess.run(["kaggle", "datasets", "metadata", dataset_id, "-p", str(stage)], check=True)
+        metadata_path = stage / "dataset-metadata.json"
+        downloaded = json.loads(metadata_path.read_text(encoding="utf-8"))
+        metadata_path.write_text(json.dumps(upload_metadata(downloaded, dataset_id), indent=2), encoding="utf-8")
         subprocess.run(["kaggle", "datasets", "version", "-p", str(stage), "-m",
                         "Update medical fine-tuning code", "--dir-mode", "skip"], check=True)
         print("Staged code in private Kaggle dataset:", dataset_id)
