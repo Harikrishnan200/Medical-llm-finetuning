@@ -29,9 +29,17 @@ def download_source(url, raw_dir):
     archive = raw_dir / "MedQuAD.zip"
     if not archive.exists():
         LOG.info("Downloading upstream MedQuAD archive")
-        with urlopen(url, timeout=120) as response, archive.open("wb") as output:
-            while chunk := response.read(1024 * 1024):
-                output.write(chunk)
+        partial = raw_dir / "MedQuAD.zip.partial"
+        try:
+            with urlopen(url, timeout=120) as response, partial.open("wb") as output:
+                while chunk := response.read(1024 * 1024):
+                    output.write(chunk)
+            with zipfile.ZipFile(partial) as zipped:
+                if not zipped.namelist():
+                    raise ValueError("Downloaded MedQuAD archive is empty")
+            partial.replace(archive)
+        finally:
+            partial.unlink(missing_ok=True)
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     return archive, digest
 

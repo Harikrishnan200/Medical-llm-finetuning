@@ -29,7 +29,7 @@ def main():
     adapter = project_path(config["training"]["output_dir"]) / "adapter"
     if not (adapter / "adapter_config.json").is_file():
         raise FileNotFoundError("Completed adapter is missing")
-    model_card = ("---\nlicense: apache-2.0\nbase_model: " + config["model"]["name"] + "\n---\n\n"
+    model_card = ("---\nlicense: " + config["model"]["license"] + "\nbase_model: " + config["model"]["name"] + "\n---\n\n"
                   "# Educational MedQuAD QLoRA adapter\n\n"
                   "Fine-tuned on MedQuAD (CC BY 4.0), upstream https://github.com/abachaa/MedQuAD. "
                   "Original source authors: Asma Ben Abacha and Dina Demner-Fushman. "
