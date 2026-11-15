@@ -1,0 +1,11 @@
+.env
+.git
+.venv
+data/raw
+data/processed
+artifacts
+mlruns
+kaggle/_stage
+kaggle/_launch
+__pycache__
+.pytest_cache

@@ -1,0 +1,44 @@
+dataset:
+  source: https://github.com/abachaa/MedQuAD
+  archive_url: https://github.com/abachaa/MedQuAD/archive/refs/heads/master.zip
+  raw_dir: data/raw
+  processed_dir: data/processed
+  max_question_chars: 500
+  max_answer_chars: 6000
+  train_fraction: 0.8
+  validation_fraction: 0.1
+  seed: 42
+model:
+  name: Qwen/Qwen2.5-1.5B-Instruct
+  license: apache-2.0
+  min_gpu_gb: 14
+training:
+  output_dir: artifacts/training
+  epochs: 1
+  learning_rate: 0.0002
+  batch_size: 1
+  gradient_accumulation_steps: 8
+  max_length: 1024
+  warmup_ratio: 0.03
+  weight_decay: 0.01
+  lora_rank: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+  quantization: nf4
+  double_quantization: true
+  gradient_checkpointing: true
+  eval_strategy: epoch
+  save_strategy: epoch
+  logging_steps: 10
+  early_stopping_patience: 2
+  seed: 42
+evaluation:
+  max_test_samples: 100
+  max_new_tokens: 192
+  min_f1_gain: 0.0
+  max_safety_flags: 0
+  overfit_gap_warning: 0.5
+publishing:
+  enabled: false
+  repo_id: null

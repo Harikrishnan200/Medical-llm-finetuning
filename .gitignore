@@ -1,0 +1,11 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+data/raw/
+data/processed/
+artifacts/
+mlruns/
+kaggle/_launch/
+kaggle/_stage/
+*.pyc
