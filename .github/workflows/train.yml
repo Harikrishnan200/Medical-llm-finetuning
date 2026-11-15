@@ -28,6 +28,10 @@ on:
         description: Queue a Kaggle GPU run after validation
         type: boolean
         default: false
+      replace_existing_code:
+        description: Replace legacy files in the existing private Kaggle code dataset
+        type: boolean
+        default: false
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -53,6 +57,7 @@ jobs:
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+          KAGGLE_REPLACE_EXISTING_CODE: ${{ inputs.replace_existing_code }}
         run: bash kaggle/stage_dataset.sh
       - name: Queue GPU notebook
         env:

@@ -52,7 +52,13 @@ def upload_metadata(downloaded, dataset_id):
     return result
 
 
-def stage_dataset(username, dry_run=False):
+def check_existing_files(files, allow_replace):
+    names = {item["name"] for item in files}
+    if names and "project.tar" not in names and not allow_replace:
+        raise RuntimeError("Existing Kaggle dataset contains legacy files. Review them and rerun with --replace-existing-code to version this project over them.")
+
+
+def stage_dataset(username, dry_run=False, allow_replace=False):
     if dry_run:
         stage = ROOT / "_stage"
         stage.mkdir(exist_ok=True)
@@ -70,6 +76,9 @@ def stage_dataset(username, dry_run=False):
         metadata_path = stage / "dataset-metadata.json"
         downloaded = json.loads(metadata_path.read_text(encoding="utf-8"))
         metadata_path.write_text(json.dumps(upload_metadata(downloaded, dataset_id), indent=2), encoding="utf-8")
+        files = subprocess.run(["kaggle", "datasets", "files", dataset_id, "--format", "json",
+                                "--page-size", "200"], check=True, capture_output=True, text=True)
+        check_existing_files(json.loads(files.stdout), allow_replace)
         subprocess.run(["kaggle", "datasets", "version", "-p", str(stage), "-m",
                         "Update medical fine-tuning code", "--dir-mode", "skip"], check=True)
         print("Staged code in private Kaggle dataset:", dataset_id)
@@ -80,13 +89,14 @@ def main():
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--stage", action="store_true", help="Version the existing private code dataset")
     parser.add_argument("--stage-dry-run", action="store_true", help="Package code locally without Kaggle access")
+    parser.add_argument("--replace-existing-code", action="store_true", help="Allow replacing legacy files in the existing private code dataset")
     args = parser.parse_args()
     load_dotenv(PROJECT / ".env", override=False)
     username = os.environ.get("KAGGLE_USERNAME")
     if not username:
         raise RuntimeError("KAGGLE_USERNAME is required")
     if args.stage or args.stage_dry_run:
-        stage_dataset(username, dry_run=args.stage_dry_run)
+        stage_dataset(username, dry_run=args.stage_dry_run, allow_replace=args.replace_existing_code)
         return
     stage = ROOT / "_launch"
     stage.mkdir(exist_ok=True)

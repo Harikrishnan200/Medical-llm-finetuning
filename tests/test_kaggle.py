@@ -32,3 +32,10 @@ def test_kaggle_metadata_conversion_and_private_guard():
     source["info"]["isPrivate"] = False
     with pytest.raises(ValueError, match="private"):
         KAGGLE["upload_metadata"](source, "owner/llama-finetuning-code")
+
+
+def test_legacy_code_requires_explicit_replacement():
+    with pytest.raises(RuntimeError, match="legacy"):
+        KAGGLE["check_existing_files"]([{"name": "old_script.py"}], False)
+    KAGGLE["check_existing_files"]([{"name": "old_script.py"}], True)
+    KAGGLE["check_existing_files"]([{"name": "project.tar"}], False)
