@@ -5,4 +5,4 @@ COPY requirements-ci.txt .
 RUN pip install --no-cache-dir -r requirements-ci.txt
 COPY . .
 USER learner
-CMD ["python", "-m", "pytest", "-q"]
+CMD ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider"]

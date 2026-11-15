@@ -1,6 +1,7 @@
 """Single-GPU QLoRA supervised fine-tuning. Run on Kaggle with a CUDA GPU."""
 
 import argparse
+from importlib.metadata import version
 import json
 import logging
 import os
@@ -119,7 +120,8 @@ def main():
             "train_loss": result.training_loss, "validation_loss": validation.get("eval_loss"),
             "gpu": info, "dataset": json.loads((data_dir / "quality_report.json").read_text(encoding="utf-8")),
             "git_commit": subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=False).stdout.strip() or None,
-            "library_versions": {"torch": torch.__version__},
+            "library_versions": {name: version(name) for name in
+                                 ("torch", "transformers", "datasets", "trl", "peft", "accelerate", "bitsandbytes")},
         }
         write_json(output / "metadata.json", metadata)
         write_json(output / "config.json", config)
