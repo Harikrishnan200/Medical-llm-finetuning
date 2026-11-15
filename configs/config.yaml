@@ -36,7 +36,7 @@ training:
 evaluation:
   max_test_samples: 100
   max_new_tokens: 192
-  min_f1_gain: 0.0
+  min_f1_gain: 0.01
   max_safety_flags: 0
   overfit_gap_warning: 0.5
 publishing:
