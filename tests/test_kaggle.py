@@ -75,3 +75,20 @@ def test_notebook_setup_accepts_archive_kaggle_dataset(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     exec(compile(setup, "kaggle/train.ipynb setup", "exec"), {})
     assert (project / "src/train.py").read_text() == "print('staged')"
+
+
+def test_bundled_notebook_starts_without_kaggle_input_mount(tmp_path, monkeypatch):
+    notebook = KAGGLE["bundled_notebook"]()
+    bundle = "".join(next(cell["source"] for cell in notebook["cells"] if cell.get("id") == "bundled-project"))
+    setup = "".join(next(cell["source"] for cell in notebook["cells"] if cell.get("id") == "setup"))
+    input_root = tmp_path / "input" / "llama-finetuning-code"
+    project = tmp_path / "working" / "medical-project"
+    setup = setup.replace("/kaggle/input/llama-finetuning-code", str(input_root).replace("\\", "/"))
+    setup = setup.replace("/kaggle/working/medical-project", str(project).replace("\\", "/"))
+    monkeypatch.chdir(tmp_path)
+    namespace = {}
+    exec(compile(bundle, "kaggle/train.ipynb bundle", "exec"), namespace)
+    exec(compile(setup, "kaggle/train.ipynb setup", "exec"), namespace)
+    assert (project / "src/train.py").is_file()
+    assert (project / "configs/config.yaml").is_file()
+    assert not (project / ".env").exists()

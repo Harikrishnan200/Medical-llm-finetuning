@@ -1,10 +1,10 @@
 """Build Kaggle metadata from the current account and queue a notebook run."""
 
 import argparse
+import base64
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 import tarfile
@@ -37,6 +37,23 @@ def package_code(archive_path):
         for path in files:
             archive.add(path, arcname=path.relative_to(PROJECT).as_posix())
     return [path.relative_to(PROJECT).as_posix() for path in files]
+
+
+def bundled_notebook():
+    """Include the same allowlisted source in case Kaggle omits the dataset mount."""
+    notebook = json.loads((ROOT / "train.ipynb").read_text(encoding="utf-8"))
+    with tempfile.TemporaryDirectory(prefix="medquad-bundle-", dir=ROOT) as temporary:
+        archive = Path(temporary) / "project.tar"
+        package_code(archive)
+        encoded = base64.b64encode(archive.read_bytes()).decode("ascii")
+    chunks = [encoded[index:index + 120] for index in range(0, len(encoded), 120)]
+    notebook["cells"].insert(1, {
+        "cell_type": "code", "id": "bundled-project", "execution_count": None,
+        "metadata": {}, "outputs": [],
+        "source": ["import base64\n", "BUNDLED_PROJECT_TAR = base64.b64decode(\n"]
+        + [f"    '{chunk}'\n" for chunk in chunks] + [")\n"],
+    })
+    return notebook
 
 
 def upload_metadata(downloaded, dataset_id):
@@ -103,7 +120,7 @@ def main():
         return
     stage = ROOT / "_launch"
     stage.mkdir(exist_ok=True)
-    shutil.copy2(ROOT / "train.ipynb", stage / "train.ipynb")
+    (stage / "train.ipynb").write_text(json.dumps(bundled_notebook(), indent=1), encoding="utf-8")
     (stage / "kernel-metadata.json").write_text(json.dumps(metadata(username), indent=2), encoding="utf-8")
     if args.dry_run:
         print("Validated notebook metadata for configured Kaggle account; no GPU job queued")
