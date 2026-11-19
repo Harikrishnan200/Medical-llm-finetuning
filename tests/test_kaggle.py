@@ -77,18 +77,25 @@ def test_notebook_setup_accepts_archive_kaggle_dataset(tmp_path, monkeypatch):
     assert (project / "src/train.py").read_text() == "print('staged')"
 
 
-def test_bundled_notebook_starts_without_kaggle_input_mount(tmp_path, monkeypatch):
+@pytest.mark.parametrize("stale_mount", [False, True])
+def test_bundled_notebook_uses_submitted_code(tmp_path, monkeypatch, stale_mount):
     notebook = KAGGLE["bundled_notebook"]()
     bundle = "".join(next(cell["source"] for cell in notebook["cells"] if cell.get("id") == "bundled-project"))
     setup = "".join(next(cell["source"] for cell in notebook["cells"] if cell.get("id") == "setup"))
     input_root = tmp_path / "input" / "llama-finetuning-code"
     project = tmp_path / "working" / "medical-project"
+    if stale_mount:
+        stale_source = input_root / "src/train.py"
+        stale_source.parent.mkdir(parents=True)
+        stale_source.write_text("old dataset version")
     setup = setup.replace("/kaggle/input/llama-finetuning-code", str(input_root).replace("\\", "/"))
     setup = setup.replace("/kaggle/working/medical-project", str(project).replace("\\", "/"))
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "0,1")
     namespace = {}
     exec(compile(bundle, "kaggle/train.ipynb bundle", "exec"), namespace)
     exec(compile(setup, "kaggle/train.ipynb setup", "exec"), namespace)
-    assert (project / "src/train.py").is_file()
+    assert (project / "src/train.py").read_text() == (Path(__file__).resolve().parents[1] / "src/train.py").read_text()
     assert (project / "configs/config.yaml").is_file()
     assert not (project / ".env").exists()
+    assert __import__("os").environ["CUDA_VISIBLE_DEVICES"] == "0"

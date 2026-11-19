@@ -5,7 +5,7 @@ import json
 import re
 
 from src.common import load_config, project_path, write_json
-from src.train import SYSTEM
+from src.train import SYSTEM, choose_precision
 
 
 def normalize(text):
@@ -57,7 +57,7 @@ def main():
         raise ValueError("Held-out test split is empty")
     if not torch.cuda.is_available():
         raise RuntimeError("Evaluation requires a CUDA GPU")
-    precision = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+    precision = torch.bfloat16 if choose_precision(torch) == "bf16" else torch.float16
     quant = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4",
                                bnb_4bit_compute_dtype=precision)
     tokenizer = AutoTokenizer.from_pretrained(training_dir / "adapter")

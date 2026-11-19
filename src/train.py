@@ -15,6 +15,12 @@ LOG = logging.getLogger(__name__)
 SYSTEM = "Provide general medical education. Do not diagnose, prescribe, or give personalized dosing. For emergencies, advise immediate local emergency care."
 
 
+def choose_precision(torch):
+    """Use BF16 only when the GPU supports it natively (T4 uses FP16)."""
+    major, _ = torch.cuda.get_device_capability(0)
+    return "bf16" if major >= 8 and torch.cuda.is_bf16_supported() else "fp16"
+
+
 def training_arguments(config, precision):
     tr = config["training"]
     from trl import SFTConfig
@@ -48,11 +54,13 @@ def gpu_info(min_gb):
     import torch
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA GPU required for 4-bit QLoRA. Enable a Kaggle GPU accelerator.")
+    if torch.cuda.device_count() != 1:
+        raise RuntimeError("QLoRA requires one visible GPU. Set CUDA_VISIBLE_DEVICES=0 before starting Python.")
     props = torch.cuda.get_device_properties(0)
     memory_gb = props.total_memory / 1024**3
     if memory_gb < min_gb:
         raise RuntimeError(f"GPU has {memory_gb:.1f} GiB; configuration requires {min_gb} GiB")
-    precision = "bf16" if torch.cuda.is_bf16_supported() else "fp16"
+    precision = choose_precision(torch)
     info = {"name": props.name, "memory_gib": round(memory_gb, 2),
             "cuda": torch.version.cuda, "torch": torch.__version__, "precision": precision}
     LOG.info("GPU: %s", info)

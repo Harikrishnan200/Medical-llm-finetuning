@@ -1,4 +1,6 @@
 import copy
+import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -7,6 +9,7 @@ from src.evaluate import scores, aggregate
 from src.report import promotion_gate
 from src.upload_adapter import can_publish
 from src.analyze_training import analyze
+from src.train import choose_precision, gpu_info
 
 
 def test_config_validation(tmp_path):
@@ -41,3 +44,17 @@ def test_promotion_and_publishing():
     config["publishing"].update(enabled=True, repo_id="owner/adapter")
     assert can_publish(config, {"status": "PASS"})
     assert not can_publish(config, {"status": "PASS WITH WARNINGS"})
+
+
+def test_t4_uses_fp16_and_multi_gpu_is_rejected(monkeypatch):
+    cuda = SimpleNamespace(is_available=lambda: True, device_count=lambda: 2,
+                           get_device_capability=lambda index: (7, 5),
+                           is_bf16_supported=lambda: True)
+    fake_torch = SimpleNamespace(cuda=cuda)
+    assert choose_precision(fake_torch) == "fp16"
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    with pytest.raises(RuntimeError, match="one visible GPU"):
+        gpu_info(14)
+    cuda.device_count = lambda: 1
+    cuda.get_device_capability = lambda index: (8, 0)
+    assert choose_precision(fake_torch) == "bf16"
