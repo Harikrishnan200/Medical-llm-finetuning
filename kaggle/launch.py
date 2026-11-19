@@ -54,7 +54,8 @@ def upload_metadata(downloaded, dataset_id):
 
 def check_existing_files(files, allow_replace):
     names = {item["name"] for item in files}
-    if names and "project.tar" not in names and not allow_replace:
+    expanded = {"src/train.py", "src/prepare_data.py", "configs/config.yaml", "requirements.txt"}
+    if names and "project.tar" not in names and not expanded.issubset(names) and not allow_replace:
         raise RuntimeError("Existing Kaggle dataset contains legacy files. Review them and rerun with --replace-existing-code to version this project over them.")
 
 

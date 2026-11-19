@@ -39,3 +39,39 @@ def test_legacy_code_requires_explicit_replacement():
         KAGGLE["check_existing_files"]([{"name": "old_script.py"}], False)
     KAGGLE["check_existing_files"]([{"name": "old_script.py"}], True)
     KAGGLE["check_existing_files"]([{"name": "project.tar"}], False)
+    KAGGLE["check_existing_files"]([{"name": name} for name in
+                                    ("src/train.py", "src/prepare_data.py", "configs/config.yaml", "requirements.txt")], False)
+
+
+def test_notebook_setup_accepts_expanded_kaggle_dataset(tmp_path, monkeypatch):
+    notebook = json.loads((Path(__file__).resolve().parents[1] / "kaggle/train.ipynb").read_text())
+    setup = "".join(next(cell["source"] for cell in notebook["cells"] if cell.get("id") == "setup"))
+    input_root = tmp_path / "input" / "llama-finetuning-code"
+    project = tmp_path / "working" / "medical-project"
+    for name in ("src/train.py", "configs/config.yaml", "data/evaluation/safety.json", "requirements.txt"):
+        path = input_root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(name)
+    setup = setup.replace("/kaggle/input/llama-finetuning-code", str(input_root).replace("\\", "/"))
+    setup = setup.replace("/kaggle/working/medical-project", str(project).replace("\\", "/"))
+    monkeypatch.chdir(tmp_path)
+    exec(compile(setup, "kaggle/train.ipynb setup", "exec"), {})
+    assert (project / "src/train.py").read_text() == "src/train.py"
+    assert (project / "data/evaluation/safety.json").is_file()
+
+
+def test_notebook_setup_accepts_archive_kaggle_dataset(tmp_path, monkeypatch):
+    notebook = json.loads((Path(__file__).resolve().parents[1] / "kaggle/train.ipynb").read_text())
+    setup = "".join(next(cell["source"] for cell in notebook["cells"] if cell.get("id") == "setup"))
+    input_root = tmp_path / "input" / "llama-finetuning-code"
+    project = tmp_path / "working" / "medical-project"
+    input_root.mkdir(parents=True)
+    source = tmp_path / "train.py"
+    source.write_text("print('staged')")
+    with tarfile.open(input_root / "project.tar", "w") as archive:
+        archive.add(source, arcname="src/train.py")
+    setup = setup.replace("/kaggle/input/llama-finetuning-code", str(input_root).replace("\\", "/"))
+    setup = setup.replace("/kaggle/working/medical-project", str(project).replace("\\", "/"))
+    monkeypatch.chdir(tmp_path)
+    exec(compile(setup, "kaggle/train.ipynb setup", "exec"), {})
+    assert (project / "src/train.py").read_text() == "print('staged')"
