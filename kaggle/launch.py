@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 
@@ -13,6 +14,7 @@ from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent
 PROJECT = ROOT.parent
+KAGGLE = [sys.executable, "-m", "kaggle"]
 
 
 def metadata(username):
@@ -73,14 +75,14 @@ def stage_dataset(username, dry_run=False, allow_replace=False):
         stage = Path(temporary)
         package_code(stage / "project.tar")
         dataset_id = f"{username}/llama-finetuning-code"
-        subprocess.run(["kaggle", "datasets", "metadata", dataset_id, "-p", str(stage)], check=True)
+        subprocess.run([*KAGGLE, "datasets", "metadata", dataset_id, "-p", str(stage)], check=True)
         metadata_path = stage / "dataset-metadata.json"
         downloaded = json.loads(metadata_path.read_text(encoding="utf-8"))
         metadata_path.write_text(json.dumps(upload_metadata(downloaded, dataset_id), indent=2), encoding="utf-8")
-        files = subprocess.run(["kaggle", "datasets", "files", dataset_id, "--format", "json",
+        files = subprocess.run([*KAGGLE, "datasets", "files", dataset_id, "--format", "json",
                                 "--page-size", "200"], check=True, capture_output=True, text=True)
         check_existing_files(json.loads(files.stdout), allow_replace)
-        subprocess.run(["kaggle", "datasets", "version", "-p", str(stage), "-m",
+        subprocess.run([*KAGGLE, "datasets", "version", "-p", str(stage), "-m",
                         "Update medical fine-tuning code", "--dir-mode", "skip"], check=True)
         print("Staged code in private Kaggle dataset:", dataset_id)
 
@@ -108,7 +110,7 @@ def main():
         return
     if not os.environ.get("KAGGLE_KEY"):
         raise RuntimeError("KAGGLE_KEY is required")
-    subprocess.run(["kaggle", "kernels", "push", "-p", str(stage)], check=True)
+    subprocess.run([*KAGGLE, "kernels", "push", "-p", str(stage)], check=True)
     print(f"Submission accepted or queued: https://www.kaggle.com/code/{username}/medical-medquad-qlora")
     print("Check actual completion with: kaggle kernels status " + username + "/medical-medquad-qlora")
     print("Submission is not proof that training completed.")
