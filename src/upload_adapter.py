@@ -13,6 +13,26 @@ def can_publish(config, promotion):
             and promotion.get("status") == "PASS")
 
 
+def get_hf_token():
+    token = os.environ.get("HF_TOKEN")
+    if token:
+        return token
+    try:
+        from kaggle_secrets import UserSecretsClient
+        token = UserSecretsClient().get_secret("HF_TOKEN")
+    except Exception as exc:
+        raise RuntimeError("HF_TOKEN is required for private upload; add it in Kaggle Add-ons > Secrets and grant this notebook access") from exc
+    if not token:
+        raise RuntimeError("HF_TOKEN is empty in Kaggle Secrets")
+    return token
+
+
+def ensure_private_repo(api, repo):
+    api.create_repo(repo_id=repo, repo_type="model", exist_ok=True, private=True)
+    if api.repo_info(repo_id=repo, repo_type="model").private is not True:
+        raise RuntimeError(f"Refusing to upload to a non-private Hugging Face repository: {repo}")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config")
@@ -22,9 +42,7 @@ def main():
     if not can_publish(config, promotion):
         print("Publishing skipped: explicit enablement, repository and PASS are all required")
         return
-    token = os.environ.get("HF_TOKEN")
-    if not token:
-        raise RuntimeError("HF_TOKEN is required when publishing is enabled")
+    token = get_hf_token()
     from huggingface_hub import HfApi
     adapter = project_path(config["training"]["output_dir"]) / "adapter"
     if not (adapter / "adapter_config.json").is_file():
@@ -40,7 +58,7 @@ def main():
     (adapter / "README.md").write_text(model_card, encoding="utf-8")
     api = HfApi(token=token)
     repo = config["publishing"]["repo_id"]
-    api.create_repo(repo_id=repo, repo_type="model", exist_ok=True, private=True)
+    ensure_private_repo(api, repo)
     api.upload_folder(repo_id=repo, repo_type="model", folder_path=str(adapter),
                       ignore_patterns=["*.bin", "checkpoint-*"])
     print(f"Published adapter to private repository {repo}")

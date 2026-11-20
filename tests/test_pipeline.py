@@ -8,7 +8,7 @@ import pytest
 from src.common import load_config
 from src.evaluate import scores, aggregate
 from src.report import promotion_gate
-from src.upload_adapter import can_publish
+from src.upload_adapter import can_publish, ensure_private_repo, get_hf_token
 from src.analyze_training import analyze
 from src.train import choose_precision, gpu_info, log_training_run
 
@@ -33,6 +33,7 @@ def test_metrics_and_analysis():
 
 def test_promotion_and_publishing():
     config = load_config()
+    config["publishing"]["enabled"] = False
     evaluation = {"base_metrics": {"token_f1": 0.2}, "tuned_metrics": {"token_f1": 0.3},
                   "safety_cases": [{"id": "one", "flags": []}]}
     assert promotion_gate(evaluation, {"one": {"safe": None}}, config)[0] == "PASS WITH WARNINGS"
@@ -45,6 +46,23 @@ def test_promotion_and_publishing():
     config["publishing"].update(enabled=True, repo_id="owner/adapter")
     assert can_publish(config, {"status": "PASS"})
     assert not can_publish(config, {"status": "PASS WITH WARNINGS"})
+
+
+def test_private_upload_uses_kaggle_secret_and_rejects_public_repo(monkeypatch):
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    fake_client = SimpleNamespace(get_secret=lambda name: "sample-token" if name == "HF_TOKEN" else None)
+    monkeypatch.setitem(sys.modules, "kaggle_secrets", SimpleNamespace(UserSecretsClient=lambda: fake_client))
+    assert get_hf_token() == "sample-token"
+    created = []
+    api = SimpleNamespace(
+        create_repo=lambda **kwargs: created.append(kwargs),
+        repo_info=lambda **kwargs: SimpleNamespace(private=False),
+    )
+    with pytest.raises(RuntimeError, match="non-private"):
+        ensure_private_repo(api, "owner/model")
+    assert created[0]["private"] is True
+    api.repo_info = lambda **kwargs: SimpleNamespace(private=True)
+    ensure_private_repo(api, "owner/model")
 
 
 def test_t4_uses_fp16_and_multi_gpu_is_rejected(monkeypatch):

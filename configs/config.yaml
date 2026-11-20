@@ -40,5 +40,5 @@ evaluation:
   max_safety_flags: 0
   overfit_gap_warning: 0.5
 publishing:
-  enabled: false
-  repo_id: null
+  enabled: true
+  repo_id: Harikrishnan2003/medical-medquad-qlora-adapter
