@@ -1,4 +1,5 @@
 import copy
+from contextlib import nullcontext
 import sys
 from types import SimpleNamespace
 
@@ -9,7 +10,7 @@ from src.evaluate import scores, aggregate
 from src.report import promotion_gate
 from src.upload_adapter import can_publish
 from src.analyze_training import analyze
-from src.train import choose_precision, gpu_info
+from src.train import choose_precision, gpu_info, log_training_run
 
 
 def test_config_validation(tmp_path):
@@ -58,3 +59,28 @@ def test_t4_uses_fp16_and_multi_gpu_is_rejected(monkeypatch):
     cuda.device_count = lambda: 1
     cuda.get_device_capability = lambda index: (8, 0)
     assert choose_precision(fake_torch) == "bf16"
+
+
+def test_mlflow_uses_sqlite_and_cannot_fail_completed_training(monkeypatch, tmp_path, caplog):
+    from src import train
+    calls = {}
+    fake_mlflow = SimpleNamespace(
+        set_tracking_uri=lambda uri: calls.update(uri=uri),
+        set_experiment=lambda name: calls.update(experiment=name),
+        start_run=lambda: nullcontext(),
+        log_params=lambda params: calls.update(params=params),
+        log_metrics=lambda metrics: calls.update(metrics=metrics),
+        set_tag=lambda key, value: calls.update(tag=(key, value)),
+    )
+    monkeypatch.setitem(sys.modules, "mlflow", fake_mlflow)
+    monkeypatch.setattr(train, "project_path", lambda _: tmp_path / "mlflow.db")
+    metadata = {"base_model": "test-model", "dataset": {"archive_sha256": "abc"},
+                "git_commit": None, "train_loss": 1.0, "validation_loss": 1.1,
+                "duration_seconds": 10, "adapter": "/adapter"}
+    log_training_run(metadata, {"batch_size": 1})
+    assert calls["uri"].startswith("sqlite:///")
+    assert calls["uri"].endswith("mlflow.db")
+    assert calls["metrics"]["validation_loss"] == 1.1
+    fake_mlflow.set_experiment = lambda _: (_ for _ in ()).throw(RuntimeError("tracking unavailable"))
+    log_training_run(metadata, {"batch_size": 1})
+    assert "tracking unavailable" in caplog.text

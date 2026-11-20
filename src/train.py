@@ -67,6 +67,25 @@ def gpu_info(min_gb):
     return info
 
 
+def log_training_run(metadata, training_config):
+    """Record a completed adapter run without making tracking a training gate."""
+    try:
+        import mlflow
+        database = project_path("artifacts/training/mlflow.db").resolve()
+        mlflow.set_tracking_uri("sqlite:///" + database.as_posix())
+        mlflow.set_experiment("medical-medquad-qlora")
+        with mlflow.start_run():
+            mlflow.log_params({"base_model": metadata["base_model"],
+                               "dataset_sha256": metadata["dataset"]["archive_sha256"],
+                               "git_commit": metadata["git_commit"] or "unknown", **training_config})
+            mlflow.log_metrics({"train_loss": metadata["train_loss"],
+                                "validation_loss": metadata["validation_loss"],
+                                "duration_seconds": metadata["duration_seconds"]})
+            mlflow.set_tag("adapter_path", metadata["adapter"])
+    except Exception as exc:
+        LOG.warning("MLflow tracking failed; adapter and JSON metadata remain available: %s", exc)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config")
@@ -133,18 +152,7 @@ def main():
         }
         write_json(output / "metadata.json", metadata)
         write_json(output / "config.json", config)
-        try:
-            import mlflow
-            mlflow.set_tracking_uri((project_path("mlruns")).as_uri())
-            mlflow.set_experiment("medical-medquad-qlora")
-            with mlflow.start_run():
-                mlflow.log_params({"base_model": model_name, "dataset_sha256": metadata["dataset"]["archive_sha256"],
-                                   "git_commit": metadata["git_commit"] or "unknown", **tr})
-                mlflow.log_metrics({"train_loss": result.training_loss,
-                                    "validation_loss": validation["eval_loss"], "duration_seconds": duration})
-                mlflow.set_tag("adapter_path", str(adapter))
-        except ImportError:
-            LOG.warning("MLflow is not installed; JSON training metadata remains available")
+        log_training_run(metadata, tr)
         LOG.info("Adapter saved at %s", adapter)
     finally:
         # Keep partial history when training fails; do not write success metadata.

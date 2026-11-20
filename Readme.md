@@ -2,7 +2,7 @@
 
 This educational pipeline prepares MedQuAD, fine-tunes a QLoRA adapter on a Kaggle GPU, compares it with the base model, and applies a promotion gate. It is **not clinically validated**. The original brief is preserved in [PROJECT_SPEC.md](PROJECT_SPEC.md).
 
-The starting workspace contained only the brief: no Git repository or earlier Kaggle/GitHub files. The scripts here use the requested `llama-finetuning-code` private Kaggle dataset name, but have not been matched against your earlier working repository. No GPU run or public upload has been made.
+The starting workspace contained only the brief. The project now uses the private Kaggle dataset `llama-finetuning-code` and notebook `medical-medquad-qlora`. Kaggle has completed a one-epoch GPU training pass, but the notebook stopped at MLflow tracking before downstream analysis and evaluation. No public upload has been made.
 
 ```mermaid
 flowchart TD
@@ -27,7 +27,7 @@ This workspace's downloaded archive had SHA-256 `45aeef400844f3551a7862c3378cc9e
 
 ## Model and hardware
 
-The default [Qwen2.5 1.5B Instruct](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct) is instruction-tuned, open-weight, and Apache 2.0 licensed. It is smaller than [Llama 3.2 3B Instruct](https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct), which has a separate Llama license and access agreement. A 4-bit 1.5B base has roughly 0.75 GB of raw weight bits; activations, quantization metadata, optimizer, and runtime add substantial memory. Config requires at least 14 GiB GPU memory and uses BF16 only on GPUs with native support; the T4 uses FP16. The Kaggle notebook exposes one GPU to the QLoRA process to avoid PyTorch DataParallel wrapping a model placed on GPU 0. A Kaggle T4 is a plausible target but **successful training has not yet been benchmarked here**. GPU availability and quotas vary.
+The default [Qwen2.5 1.5B Instruct](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct) is instruction-tuned, open-weight, and Apache 2.0 licensed. It is smaller than [Llama 3.2 3B Instruct](https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct), which has a separate Llama license and access agreement. A 4-bit 1.5B base has roughly 0.75 GB of raw weight bits; activations, quantization metadata, optimizer, and runtime add substantial memory. Config requires at least 14 GiB GPU memory and uses BF16 only on GPUs with native support; the T4 uses FP16. The Kaggle notebook exposes one GPU to the QLoRA process to avoid PyTorch DataParallel wrapping a model placed on GPU 0. The observed one-epoch Kaggle T4 run reported 8,502 seconds of training, train loss 1.0887, and validation loss 1.0674 before the later MLflow failure. Downstream evaluation remains unverified. GPU availability and quotas vary.
 
 ## Files
 
@@ -83,7 +83,7 @@ Confirm the run finished and inspect `artifacts/training/adapter`, `artifacts/re
 
 `src/train.py` formats each question and original answer as a chat exchange with an educational system instruction. TRL computes completion-only next-token loss. Bitsandbytes stores base weights in 4-bit NF4; PEFT trains small LoRA matrices. Gradient accumulation simulates a larger batch; gradient checkpointing recomputes activations to save VRAM. Validation loss selects the best epoch checkpoint, and only the adapter is saved. A failed run keeps partial `history.json` and raises the error.
 
-Training writes `artifacts/training/adapter`, `metadata.json`, `config.json`, `history.json`, and TensorBoard events. Analysis writes `artifacts/reports/training_analysis.json`, `training_summary.md`, and `artifacts/plots/loss_curve.png`. MLflow uses local `mlruns/` for parameters, dataset hash, git commit if available, losses, duration, and adapter path. Open the UIs with `mlflow ui --backend-store-uri ./mlruns` and `tensorboard --logdir artifacts/training`. On Kaggle, use `nvidia-smi` for utilization and memory. Logs never include credentials.
+Training writes `artifacts/training/adapter`, `metadata.json`, `config.json`, `history.json`, and TensorBoard events. Analysis writes `artifacts/reports/training_analysis.json`, `training_summary.md`, and `artifacts/plots/loss_curve.png`. MLflow uses `artifacts/training/mlflow.db` (SQLite) for parameters, dataset hash, git commit if available, losses, duration, and adapter path. Open the UIs with `mlflow ui --backend-store-uri sqlite:///artifacts/training/mlflow.db` and `tensorboard --logdir artifacts/training`. An MLflow error is logged as a warning after the adapter is saved. On Kaggle, use `nvidia-smi` for utilization and memory. Logs never include credentials.
 
 `src/evaluate.py` gives held-out questions the same prompt and greedy generation settings under base and adapter modes. It records normalized exact match, token F1, references, and both answers. These lexical metrics **cannot prove medical correctness**. Eight separate safety prompts cover education, diagnosis, prescribing, dosage, emergencies, uncertainty, outside coverage, and bypass attempts. Regex flags highlight suspicious responses but are not a comprehensive detector. Inspect all cases and set `safe: true` or `safe: false` with notes for each ID in `artifacts/reports/safety_review.json`, then rerun `python -m src.report`.
 
@@ -107,6 +107,7 @@ The gate returns `FAIL` for F1 regression beyond the configured threshold, too m
 
 - **No CUDA / out of memory:** enable Kaggle GPU, inspect `nvidia-smi`, reduce sequence length or LoRA targets. Training was not run in this CPU workspace.
 - **Illegal CUDA memory access at the first training step:** check that the process sees exactly one GPU. On Kaggle T4, the notebook uses `CUDA_VISIBLE_DEVICES=0` and FP16; requeue the notebook after updating its code bundle.
+- **MLflow file-store error after training:** the current code uses SQLite and treats tracking failures as warnings. If the failed run is still open in an interactive Kaggle session, verify `artifacts/training/adapter/adapter_config.json`, `metadata.json`, and `history.json` under `/kaggle/working/medical-project`, then run the existing notebook cells for `src.analyze_training`, `src.evaluate`, and `src.report` without rerunning `src.train`. A failed saved version may not publish its working files as downloadable outputs.
 - **Download failure:** enable Kaggle internet or pass a verified local upstream archive.
 - **Staging failure:** check the existing private dataset ID and CLI credentials; this workspace lacked the previous integration.
 - **No PASS:** inspect `evaluation.json`, `predictions.json`, and `safety_review.json`; lexical overlap can miss correct paraphrases.
